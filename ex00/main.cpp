@@ -1,4 +1,4 @@
-#include "ScalarConverter.hpp" // Include the ScalarConverter class declaration
+#include "ScalarConverter.hpp"
 
 int main(int argc, char **argv)
 {

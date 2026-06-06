@@ -17,212 +17,445 @@ ScalarConverter &ScalarConverter::operator=(const ScalarConverter &src)
 
 ScalarConverter::~ScalarConverter() {}
 
-//main_statical_conversion_procedure
+LiteralType ScalarConverter::detectType(const std::string &literal)
+{
+    if (isPseudoLiteral(literal))
+        return PSEUDO_TYPE;
+
+    if (isCharLiteral(literal))
+        return CHAR_TYPE;
+
+    if (isIntegerLiteral(literal))
+        return INT_TYPE;
+
+    if (isFloatLiteral(literal))
+        return FLOAT_TYPE;
+
+    if (isDoubleLiteral(literal))
+        return DOUBLE_TYPE;
+
+    return INVALID_TYPE;
+}
+
+bool ScalarConverter::isPseudoLiteral(const std::string &s)
+{
+    if (s == "nan" || s == "nanf" || s == "+inf" || s == "-inf" || s == "+inff" || s == "-inff")
+        return true;
+    return false;
+}
+
+//both a and 'a'
+bool ScalarConverter::isCharLiteral(const std::string &s)
+{
+    if (s.length() == 1 && !std::isdigit(s[0]))
+        return true;
+
+    if (s.length() == 3 && s[0] == '\'' && s[2] == '\'')
+        return true;
+
+    return false;
+}
+
+//42, -42, +42, 0
+bool ScalarConverter::isIntegerLiteral(const std::string &s)
+{
+    if (s.empty())
+        return false;
+
+    size_t i = 0;
+
+    if (s[i] == '+' || s[i] == '-')
+        i++;
+
+    if (i == s.length())
+        return false;
+
+    while (i < s.length())
+    {
+        if (!std::isdigit(s[i]))
+            return false;
+
+        i++;
+    }
+    return true;
+}
+
+//42.0f, 0.0f, -1.5f OK
+//42f, 42.0f, 42.0fabc NOT OKAY
+// bool ScalarConverter::isFloatLiteral(const std::string &s)
+// {
+//     if (s.length() < 3)
+//         return false;
+
+//     if (s[s.length() - 1] != 'f')
+//         return false;
+
+//     bool dotFound = false;
+//     bool digitFound = false;
+
+//     size_t i = 0;
+
+//     if (s[i] == '+' || s[i] == '-')
+//         i++;
+
+//     while (i < s.length() - 1)
+//     {
+//         if (std::isdigit(s[i]))
+//         {
+//             digitFound = true;
+//         }
+//         else if (s[i] == '.')
+//         {
+//             if (dotFound)
+//                 return false;
+
+//             dotFound = true;
+//         }
+//         else
+//         {
+//             return false;
+//         }
+
+//         i++;
+//     }
+
+//     if (digitFound && dotFound)
+//         return true;
+//     return false;
+// }
+
+bool ScalarConverter::isFloatLiteral(const std::string &s)
+{
+    if (s.empty())
+        return false;
+
+    if (s[s.length() - 1] != 'f')
+        return false;
+
+    size_t i = 0;
+
+    if (s[i] == '+' || s[i] == '-')
+        i++;
+
+    bool digitBeforeDot = false;
+    bool digitAfterDot = false;
+    bool dotFound = false;
+
+    while (i < s.length() - 1)
+    {
+        if (std::isdigit(s[i]))
+        {
+            if (!dotFound)
+                digitBeforeDot = true;
+            else
+                digitAfterDot = true;
+        }
+        else if (s[i] == '.')
+        {
+            if (dotFound)
+                return false;
+
+            dotFound = true;
+        }
+        else
+        {
+            return false;
+        }
+
+        i++;
+    }
+
+    return (digitBeforeDot &&
+            dotFound &&
+            digitAfterDot);
+}
+
+//42.0, 4.2, 0.0, -3.14 OK
+//42.0f, 42.0abc, 4..2 NOT OKAY
+// bool ScalarConverter::isDoubleLiteral(const std::string &s)
+// {
+//     bool dotFound = false;
+//     bool digitFound = false;
+
+//     size_t i = 0;
+
+//     if (s[i] == '+' || s[i] == '-')
+//         i++;
+
+//     while (i < s.length())
+//     {
+//         if (std::isdigit(s[i]))
+//         {
+//             digitFound = true;
+//         }
+//         else if (s[i] == '.')
+//         {
+//             if (dotFound)
+//                 return false;
+
+//             dotFound = true;
+//         }
+//         else
+//         {
+//             return false;
+//         }
+
+//         i++;
+//     }
+
+//     return (digitFound && dotFound);
+// }
+
+bool ScalarConverter::isDoubleLiteral(const std::string &s)
+{
+    if (s.empty())
+        return false;
+
+    size_t i = 0;
+
+    if (s[i] == '+' || s[i] == '-')
+        i++;
+
+    bool dotFound = false;
+    bool digitBeforeDot = false;
+    bool digitAfterDot = false;
+
+    while (i < s.length())
+    {
+        if (std::isdigit(s[i]))
+        {
+            if (!dotFound)
+                digitBeforeDot = true;
+            else
+                digitAfterDot = true;
+        }
+        else if (s[i] == '.')
+        {
+            if (dotFound)
+                return false;
+
+            dotFound = true;
+        }
+        else
+        {
+            return false;
+        }
+
+        i++;
+    }
+
+    return (digitBeforeDot && dotFound && digitAfterDot);
+}
+
 void ScalarConverter::convert(const std::string &literal)
 {
-    bool isSpecial = false; //nan or inf
-    double d_val = 0; //base value
+    LiteralType type = detectType(literal);
 
-    if (literal == "nan" || literal == "nanf" ||
-        literal == "inf" || literal == "+inf" || literal == "-inf" ||
-        literal == "inff" || literal == "+inff" || literal == "-inff")
+    if (type == INVALID_TYPE)
     {
-        //flag to bypass strict numeric parsing
-        isSpecial = true;
+        std::cout << "char: impossible" << std::endl;
+        std::cout << "int: impossible" << std::endl;
+        std::cout << "float: impossible" << std::endl;
+        std::cout << "double: impossible" << std::endl;
+        return;
+    }
+
+    // ============================================================
+    // PSEUDO LITERALS
+    // ============================================================
+
+    if (type == PSEUDO_TYPE)
+    {
+        std::cout << "char: impossible" << std::endl;
+        std::cout << "int: impossible" << std::endl;
+
         if (literal == "nan" || literal == "nanf")
         {
-            d_val = std::numeric_limits<double>::quiet_NaN();
+            std::cout << "float: nanf" << std::endl;
+            std::cout << "double: nan" << std::endl;
         }
         else if (literal == "-inf" || literal == "-inff")
         {
-            d_val = -std::numeric_limits<double>::infinity();
+            std::cout << "float: -inff" << std::endl;
+            std::cout << "double: -inf" << std::endl;
         }
         else
         {
-            d_val = std::numeric_limits<double>::infinity();
+            std::cout << "float: +inff" << std::endl;
+            std::cout << "double: +inf" << std::endl;
         }
+
+        return;
     }
 
-    //regular nums or individual chars
-    if (!isSpecial)
-    {
-        //unquoted single chars
-        if (literal.length() == 1 && !std::isdigit(literal[0]))
-        {
-            d_val = static_cast<double>(literal[0]);
-        }
+    // ============================================================
+    // CHAR INPUT
+    // ============================================================
 
-        //char inside ""
-        else if (literal.length() == 3 && literal[0] == '\'' && literal[2] == '\'')
-        {
-            d_val = static_cast<double>(literal[1]);
-        }
-        //floating point or decimal integers
+    if (type == CHAR_TYPE)
+    {
+        char value;
+
+        // support both: a and 'a'
+        if (literal.length() == 1)
+            value = literal[0];
         else
-        {
-            //reset errno before parsing to cathch erange
-            errno = 0;
+            value = literal[1];
 
-            //pointer to locate parsing stoppage point
-            char *endptr = NULL;
+        int i = static_cast<int>(value);
+        float f = static_cast<float>(value);
+        double d = static_cast<double>(value);
 
-            //invoke standard parsing utility
-            d_val = std::strtod(literal.c_str(), &endptr);
+        std::cout << "char: '" << value << "'" << std::endl;
 
-            //catch overflow of double
-            if (errno == ERANGE)
-            {
-                std::cout << "char: impossible" << std::endl;
-                std::cout << "int: impossible" << std::endl;
-                std::cout << "float: impossible" << std::endl;
-                std::cout << "double: impossible" << std::endl;
-                return;
-            }
+        std::cout << "int: " << i << std::endl;
 
-            //detect trailing chars or unparsed fractions
-            if (endptr == literal.c_str() || *endptr != '\0')
-            {
-                //check for floar suffix (42f not acceptable without dot)
-                //unrecognized char literal formation
-                if (!(endptr && *endptr == 'f' && *(endptr + 1) == '\0' &&
-                endptr != literal.c_str() && literal.find('.') != std::string::npos))
-                {
-                    std::cout << "char: impossible" << std::endl;
-                    std::cout << "int: impossible" << std::endl;
-                    std::cout << "float: impossible" << std::endl;
-                    std::cout << "double: impossible" << std::endl;
-                    return;
-                }
-            }
-        }
+        std::cout << "float: " << std::fixed << std::setprecision(1) << f << "f" << std::endl;
+
+        std::cout << "double: " << d << std::endl;
+
+        return;
     }
 
-    std::cout << "char: ";
+    // ============================================================
+    // INT INPUT
+    // ============================================================
 
-    //make new Nan
-    bool isNan = (d_val != d_val);
-    bool isInf = (d_val == std::numeric_limits<double>::infinity() || d_val == -std::numeric_limits<double>::infinity());
+    if (type == INT_TYPE)
+    {
+        errno = 0;
 
-    //check for stuff that cannot be represented and car extremes
-    if (isSpecial || isNan || isInf ||
-        d_val < std::numeric_limits<signed char>::min() || d_val > std::numeric_limits<signed char>::max())
-    {
-        std::cout << "impossible" << std::endl;
-    }
-    //valid string
-    else
-    {
-        char c = static_cast<char>(d_val);
-        //isprint requires unsigned char or EOF
-        if (std::isprint(static_cast<unsigned char>(c)))
+        long value = std::strtol(literal.c_str(), NULL, 10);
+
+        if (errno == ERANGE || value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max())
         {
-            std::cout << "'" << c << "'" << std::endl;
+            std::cout << "char: impossible" << std::endl;
+            std::cout << "int: impossible" << std::endl;
+            std::cout << "float: impossible" << std::endl;
+            std::cout << "double: impossible" << std::endl;
+            return;
         }
-        else
-        {
+
+        int i = static_cast<int>(value);
+        char c = static_cast<char>(i);
+        float f = static_cast<float>(i);
+        double d = static_cast<double>(i);
+
+        std::cout << "char: ";
+
+        if (!std::isprint(static_cast<unsigned char>(c)))
             std::cout << "Non displayable" << std::endl;
-        }
+        else
+            std::cout << "'" << c << "'" << std::endl;
+
+        std::cout << "int: " << i << std::endl;
+        std::cout << "float: " << std::fixed << std::setprecision(1) << f << "f" << std::endl;
+        std::cout << "double: " << d << std::endl;
+
+        return;
     }
 
-    std::cout << "int: ";
-    if (isSpecial || isNan || isInf ||
-        d_val < std::numeric_limits<int>::min() || d_val > std::numeric_limits<int>::max())
-    {
-        std::cout << "impossible" << std::endl;
-    }
+    // ============================================================
+    // FLOAT INPUT
+    // ============================================================
 
-    //valid int
-    else
+    if (type == FLOAT_TYPE)
     {
-        int i = static_cast<int>(d_val);
-        std::cout << i << std::endl;
-    }
+        float value = std::strtof(literal.c_str(), NULL);
 
-    std::cout << "float: ";
-    //separate handling for secial float values
-    if (isSpecial)
-    {
-        if (isNan)
-        {
-            std::cout << "nanf" << std::endl;
-        }
-        //negative inf condition
-        else if (d_val < 0)
-        {
-            std::cout << "-inff" << std::endl;
-        }
-        else //positive_inf_condition
-        {
-            std::cout << "+inff" << std::endl;
-        }
-    }
-    //standard floating point convertion
-    else
-    {
-        if (d_val > std::numeric_limits<float>::max() || d_val < -std::numeric_limits<float>::max())
+        char c = static_cast<char>(value);
+        int i = static_cast<int>(value);
+        double d = static_cast<double>(value);
+
+        std::cout << "char: ";
+
+        if (value < std::numeric_limits<char>::min() || value > std::numeric_limits<char>::max() ||
+            std::floor(value) != value)
         {
             std::cout << "impossible" << std::endl;
         }
-        //process with ranges
+        else if (!std::isprint(static_cast<unsigned char>(c)))
+        {
+            std::cout << "Non displayable" << std::endl;
+        }
         else
         {
-            float f = static_cast<float>(d_val);
-            //check absence of fractional remainder
-            if (std::floor(f) == f)
-            {
-                //one decimal place
-                std::cout << std::fixed << std::setprecision(1) << f << "f" << std::endl;
-                std::cout.unsetf(std::ios::floatfield);
-                std::cout.precision(6);
-            }
-            //has decimal digits
-            else
-            {
-                std::cout << f << "f" << std::endl; //standard float
-            }
+            std::cout << "'" << c << "'" << std::endl;
         }
+
+        std::cout << "int: ";
+
+        if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max() ||
+            std::floor(value) != value)
+        {
+            std::cout << "impossible" << std::endl;
+        }
+        else
+        {
+            std::cout << i << std::endl;
+        }
+
+        std::cout << "float: " << std::fixed << std::setprecision(1) << value << "f" << std::endl;
+
+        std::cout << "double: " << d << std::endl;
+
+        return;
     }
 
-    std::cout << "double: "; //print_double_prefix
-    //separate handling for special double values
-    if (isSpecial)
+    // ============================================================
+    // DOUBLE INPUT
+    // ============================================================
+
+    if (type == DOUBLE_TYPE)
     {
-        if (isNan)
+        double value = std::strtod(literal.c_str(), NULL);
+
+        char c = static_cast<char>(value);
+        int i = static_cast<int>(value);
+        float f = static_cast<float>(value);
+
+        std::cout << "char: ";
+
+        if (value < std::numeric_limits<char>::min() || value > std::numeric_limits<char>::max() ||
+            std::floor(value) != value)
         {
-            std::cout << "nan" << std::endl;
+            std::cout << "impossible" << std::endl;
         }
-        //negative inf
-        else if (d_val < 0)
+        else if (!std::isprint(static_cast<unsigned char>(c)))
         {
-            std::cout << "-inf" << std::endl;
+            std::cout << "Non displayable" << std::endl;
         }
-        //positive inf
         else
         {
-            std::cout << "+inf" << std::endl;
+            std::cout << "'" << c << "'" << std::endl;
         }
-    }
-    //standard double precision display
-    else
-    {
-        double d = d_val;
 
-        //check absence of fractional remainder
-        if (std::floor(d) == d)
+        std::cout << "int: ";
+
+        if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max() ||
+            std::floor(value) != value)
         {
-            //format with one decimal place
-            std::cout << std::fixed << std::setprecision(1) << d << std::endl;
-
-            //reset stream precision flags to prevent gobals contamination
-            std::cout.unsetf(std::ios::floatfield);
-
-            //reset default precision value
-            std::cout.precision(6);
+            std::cout << "impossible" << std::endl;
         }
-        //has decimal digits
         else
         {
-            std::cout << d << std::endl;
+            std::cout << i << std::endl;
         }
+
+        std::cout << "float: ";
+
+        if (value > std::numeric_limits<float>::max() ||
+            value < -std::numeric_limits<float>::max())
+        {
+            std::cout << "impossible" << std::endl;
+        }
+        else
+        {
+            std::cout << std::fixed << std::setprecision(1) << f << "f" << std::endl;
+        }
+
+        std::cout << "double: " << std::fixed << std::setprecision(1) << value << std::endl;
+
+        return;
     }
 }
